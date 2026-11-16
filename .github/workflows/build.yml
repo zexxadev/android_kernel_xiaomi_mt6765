@@ -27,6 +27,13 @@ jobs:
 
       - name: Compile Kernel
         run: |
+          # Hapus symlink ld bawaan Clang agar HOSTCC (x86_64) memakai /usr/bin/ld asli
+          rm -f $PWD/clang/bin/ld $PWD/clang/bin/ld.lld $PWD/clang/bin/aarch64-linux-gnu-ld
+          
+          # Arahkan hanya linker target ARM64 ke GNU ld (bfd)
+          ln -sf /usr/bin/aarch64-linux-gnu-ld.bfd $PWD/clang/bin/ld.lld
+          ln -sf /usr/bin/aarch64-linux-gnu-ld.bfd $PWD/clang/bin/aarch64-linux-gnu-ld
+          
           export ARCH=arm64
           export SUBARCH=arm64
           export PATH="$PWD/clang/bin:$PATH"
@@ -35,8 +42,16 @@ jobs:
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
             CC=clang \
+            HOSTCC=gcc \
+            HOSTLD=/usr/bin/ld \
+            LD=aarch64-linux-gnu-ld.bfd \
+            AR=llvm-ar \
+            NM=llvm-nm \
+            OBJCOPY=llvm-objcopy \
+            OBJDUMP=llvm-objdump \
+            STRIP=llvm-strip \
             CLANG_TRIPLE=aarch64-linux-gnu- \
-            CROSS_COMPILE=aarch64-linux-gnueabi- \
+            CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi-
 
       - name: Pack with AnyKernel3
