@@ -35,7 +35,7 @@ jobs:
           export SUBARCH=arm64
           export PATH="$PWD/clang/bin:$PATH"
           
-          make O=out ARCH=arm64 certus_defconfig
+          make O=out ARCH=arm64 defconfig
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
             CC=clang \
