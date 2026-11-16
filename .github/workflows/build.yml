@@ -27,10 +27,7 @@ jobs:
 
       - name: Compile Kernel
         run: |
-          # Hapus symlink ld bawaan Clang agar HOSTCC (x86_64) memakai /usr/bin/ld asli
           rm -f $PWD/clang/bin/ld $PWD/clang/bin/ld.lld $PWD/clang/bin/aarch64-linux-gnu-ld
-          
-          # Arahkan hanya linker target ARM64 ke GNU ld (bfd)
           ln -sf /usr/bin/aarch64-linux-gnu-ld.bfd $PWD/clang/bin/ld.lld
           ln -sf /usr/bin/aarch64-linux-gnu-ld.bfd $PWD/clang/bin/aarch64-linux-gnu-ld
           
@@ -42,8 +39,7 @@ jobs:
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
             CC=clang \
-            HOSTCC=gcc \
-            HOSTLD=/usr/bin/ld \
+            HOSTCC="gcc -B/usr/bin" \
             LD=aarch64-linux-gnu-ld.bfd \
             AR=llvm-ar \
             NM=llvm-nm \
