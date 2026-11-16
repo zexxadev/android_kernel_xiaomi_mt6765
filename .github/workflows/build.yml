@@ -1,0 +1,77 @@
+name: Build Kernel Certus (ARM64)
+
+on:
+  workflow_dispatch: # Agar bisa dijalankan manual lewat tombol "Run workflow" di GitHub
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout Kernel Source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 binutils-aarch64-linux-gnu binutils-arm-linux-gnueabi
+          sudo ln -sf /usr/bin/python3 /usr/bin/python
+
+      - name: Clone Toolchain (Proton Clang)
+        run: |
+          git clone --depth=1 https://github.com/kdrag0n/proton-clang.git clang
+
+      - name: Clone AnyKernel3
+        run: |
+          git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git AnyKernel3
+
+      - name: Compile Kernel
+        run: |
+          # Paksa semua panggilan ld dan ld.lld di Proton Clang dialihkan ke GNU ld (bfd)
+          rm -f $PWD/clang/bin/ld $PWD/clang/bin/ld.lld $PWD/clang/bin/aarch64-linux-gnu-ld
+          ln -sf /usr/bin/aarch64-linux-gnu-ld.bfd $PWD/clang/bin/ld
+          ln -sf /usr/bin/aarch64-linux-gnu-ld.bfd $PWD/clang/bin/ld.lld
+          ln -sf /usr/bin/aarch64-linux-gnu-ld.bfd $PWD/clang/bin/aarch64-linux-gnu-ld
+          
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export PATH="$PWD/clang/bin:$PATH"
+          
+          make O=out ARCH=arm64 certus_defconfig
+          make -j$(nproc --all) O=out \
+            ARCH=arm64 \
+            CC=clang \
+            LD=aarch64-linux-gnu-ld.bfd \
+            AR=llvm-ar \
+            NM=llvm-nm \
+            OBJCOPY=llvm-objcopy \
+            OBJDUMP=llvm-objdump \
+            STRIP=llvm-strip \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+
+      - name: Pack with AnyKernel3
+        run: |
+          # Cek hasil output image kernel (bisa Image.gz-dtb atau Image.gz)
+          if [ -f out/arch/arm64/boot/Image.gz-dtb ]; then
+            cp out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
+          elif [ -f out/arch/arm64/boot/Image.gz ]; then
+            cp out/arch/arm64/boot/Image.gz AnyKernel3/
+          else
+            echo "Kernel Image tidak ditemukan!"
+            exit 1
+          fi
+
+          # Sesuaikan device check di anykernel.sh agar cocok dengan cactus/certus
+          sed -i 's/do.devicecheck=1/do.devicecheck=0/g' AnyKernel3/anykernel.sh
+          
+          cd AnyKernel3
+          zip -r9 ../Kernel-Certus-Test.zip * -x .git README.md *placeholder
+
+      - name: Upload Kernel Zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kernel-Certus-Test
+          path: Kernel-Certus-Test.zip
